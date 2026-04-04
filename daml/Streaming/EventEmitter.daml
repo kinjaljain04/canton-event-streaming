@@ -1,0 +1,33 @@
+module Streaming.EventEmitter where
+
+import Daml.Trigger
+
+data EventPayload = EventPayload
+  with
+    templateId  : Text
+    contractId  : Text
+    payload     : Text   -- JSON-serialised contract data
+    emittedAt   : Time
+  deriving (Eq, Show)
+
+template StreamedEvent
+  with
+    emitter  : Party
+    consumer : Party
+    payload  : EventPayload
+  where
+    signatory emitter
+    observer  consumer
+
+emitterTrigger : Trigger ()
+emitterTrigger = Trigger
+  { initialize    = return ()
+  , updateState   = \_ _ _ -> return ()
+  , rule          = emitRule
+  , registeredTemplates = AllInDar
+  , heartbeat     = None
+  }
+
+emitRule : Party -> TriggerA () ()
+emitRule party = do
+  return ()
