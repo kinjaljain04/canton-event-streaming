@@ -1,7 +1,99 @@
-.daml/
-dist/
-node_modules/
-.env
+# ===================================================================
+# General
+# ===================================================================
+# Logs
+logs
 *.log
-__pycache__/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS-generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editor directories and files
+.idea
+.idea_modules/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.bak
+*.swp
+*~
+.vscode/
+
+# ===================================================================
+# Scala / sbt / Java
+# ===================================================================
+# sbt
+/project/project
+/project/target
+/target
+/build.sbt.lock
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# Metals / Bloop
+.metals/
+.bloop/
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ===================================================================
+# Canton / Daml
+#
+# Ignored even if this project doesn't contain Daml source,
+# as a local sandbox might be run for testing.
+# ===================================================================
+.daml/
+.dpm/
+*.dar
+
+# ===================================================================
+# Node.js (if used for UI or scripting)
+# ===================================================================
+node_modules/
+dist/
+dist-ssr/
+.npm/
+.yarn-cache/
+.yarn-integrity
+
+# ===================================================================
+# Secrets & Environment
+# ===================================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Do not ignore .env.example
+!/.env.example
+!/.env.example.*
