@@ -1,27 +1,53 @@
-name: Canton Event Streaming CI
+name: CI Build and Test
 
 on:
   push:
-    branches: [main]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [main]
+    branches: [ "main", "develop" ]
+
+# Cancel in-progress runs on new commits to the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: Build and Test
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+    timeout-minutes: 20
 
-  daml:
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Daml SDK
-        run: curl -sSL https://get.daml.com/ | sh -s 2.9.0
-      - run: ~/.daml/bin/daml build
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'sbt'
+
+      - name: Check source code formatting
+        run: sbt scalafmtCheckAll
+
+      - name: Compile and run tests
+        # This command will compile all sources, run unit tests, and integration tests.
+        # We assume integration tests (e.g., ConnectorSpec, KafkaSinkSpec)
+        # use the Testcontainers library to spin up Docker containers for
+        # Kafka, Pulsar, and a Canton Sandbox as needed. This encapsulates
+        # test dependencies within the test code itself, simplifying CI.
+        run: sbt test
+
+      - name: Package application (fat JAR)
+        # This step ensures that the application packaging is correctly configured
+        # and would produce the distributable artifact.
+        run: sbt assembly
+
+      - name: Upload connector artifact
+        uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' # Only upload for main branch builds
+        with:
+          name: canton-event-streaming-connector
+          path: target/scala-*/canton-event-streaming-*.jar
+          retention-days: 7
