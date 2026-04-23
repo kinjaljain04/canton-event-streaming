@@ -1,112 +1,392 @@
-# Canton Event Streaming Connector Configuration
+# Canton Event Streaming Connector: Configuration Reference
 
-This document provides a comprehensive reference for all configuration parameters for the Canton Event Streaming Connector.
+This document provides a comprehensive reference for all configuration options available in the Canton Event Streaming Connector. The configuration is specified in a file using the [HOCON (Human-Optimized Config Object Notation)](https://github.com/lightbend/config/blob/main/HOCON.md) format, typically named `connector.conf`.
 
-## Overview
+## Table of Contents
 
-Configuration is primarily managed through **environment variables**. This approach is container-friendly and aligns with modern deployment practices (e.g., Docker, Kubernetes).
-
-All environment variables are prefixed with `CES_` (Canton Event Streamer) to avoid conflicts.
-
----
-
-## 1. Common Configuration
-
-These settings are required regardless of the chosen sink (Kafka, Pulsar, or Kinesis). They configure the connection to the Canton participant, authentication, and event filtering.
-
-| Variable | Description | Required | Default |
-| :--- | :--- | :--- | :--- |
-| `CES_CANTON_HOST` | The gRPC hostname of the Canton participant node. | Yes | |
-| `CES_CANTON_PORT` | The gRPC port of the Canton participant node. | Yes | |
-| `CES_CANTON_PARTY_IDS` | A comma-separated list of party identifiers to stream events for. The connector will subscribe to the transaction stream for all specified parties. | Yes | |
-| `CES_CANTON_TLS_ENABLED` | Set to `true` to enable TLS for the gRPC connection to the Canton participant. | No | `false` |
-| `CES_CANTON_TLS_CA_CERT_PATH` | Path to the root CA certificate file. Required if `CES_CANTON_TLS_ENABLED` is `true` and the participant uses a custom certificate authority. | No | |
-| `CES_CANTON_AUTH_TOKEN_FILE` | Path to a file containing the JWT for authenticating with the Canton participant's Ledger API. | No | |
-| `CES_CANTON_TEMPLATE_IDS` | An optional comma-separated list of fully qualified template IDs to filter for (e.g., `MyModule:MyTemplate,Another.Module:AnotherTemplate`). If omitted, all events for the specified parties are streamed. | No | |
-| `CES_CANTON_START_OFFSET` | Defines where to begin streaming from the ledger. Can be `beginning`, `end`, or a specific ledger offset string. | No | `end` |
-| `CES_SINK_TYPE` | The destination event streaming platform. Must be one of `KAFKA`, `PULSAR`, or `KINESIS`. | Yes | |
-| `CES_LOG_LEVEL` | The logging level for the connector. Supported values: `DEBUG`, `INFO`, `WARN`, `ERROR`. | No | `INFO` |
+- [Core Connector Configuration](#core-connector-configuration)
+  - [Canton Ledger Connection (`canton.ledger`)](#canton-ledger-connection-cantonledger)
+  - [Connector Settings (`connector`)](#connector-settings-connector)
+- [Sink Configuration (`sink`)](#sink-configuration-sink)
+  - [Kafka Sink (`sink.kafka`)](#kafka-sink-sinkkafka)
+  - [Pulsar Sink (`sink.pulsar`)](#pulsar-sink-sinkpulsar)
+  - [AWS Kinesis Sink (`sink.kinesis`)](#aws-kinesis-sink-sinkkinesis)
+- [Data Format (`format`)](#data-format-format)
+- [Metrics (`metrics`)](#metrics-metrics)
+- [Full Example Configuration](#full-example-configuration)
 
 ---
 
-## 2. Sink-Specific Configuration
+## Core Connector Configuration
 
-Configure the section corresponding to the `CES_SINK_TYPE` you have selected.
+This section covers the essential settings for connecting to the Canton ledger and controlling the behavior of the connector itself.
 
-### 2.1 Apache Kafka (`CES_SINK_TYPE=KAFKA`)
+### Canton Ledger Connection (`canton.ledger`)
 
-| Variable | Description | Required | Default |
-| :--- | :--- | :--- | :--- |
-| `CES_KAFKA_BOOTSTRAP_SERVERS` | A comma-separated list of Kafka broker host:port pairs. | Yes | |
-| `CES_KAFKA_TOPIC` | The target Kafka topic where Canton events will be published. | Yes | |
-| `CES_KAFKA_CLIENT_ID` | An identifier for the Kafka producer client. | No | `canton-event-streamer` |
-| `CES_KAFKA_ACKS` | The number of acknowledgments the producer requires. Recommended for durability: `all` (-1). | No | `all` |
-| `CES_KAFKA_COMPRESSION_TYPE` | The compression type for all messages. Can be `none`, `gzip`, `snappy`, `lz4`, or `zstd`. | No | `snappy` |
-| `CES_KAFKA_SECURITY_PROTOCOL` | Protocol used to communicate with brokers. `PLAINTEXT`, `SSL`, `SASL_PLAINTEXT`, `SASL_SSL`. | No | `PLAINTEXT` |
-| `CES_KAFKA_SASL_MECHANISM` | SASL mechanism to use for authentication. `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`. | No | |
-| `CES_KAFKA_SASL_JAAS_CONFIG` | The SASL JAAS configuration string. Example: `org.apache.kafka.common.security.plain.PlainLoginModule required username="user" password="password";` | No | |
-| `CES_KAFKA_SSL_TRUSTSTORE_LOCATION` | Path to the truststore file. | No | |
-| `CES_KAFKA_SSL_TRUSTSTORE_PASSWORD` | The password for the truststore file. | No | |
+This block configures the connection to the Canton participant's Ledger API.
 
-### 2.2 Apache Pulsar (`CES_SINK_TYPE=PULSAR`)
+```hocon
+canton.ledger {
+  # Hostname or IP address of the Canton participant's Ledger API gRPC server.
+  host = "localhost"
 
-| Variable | Description | Required | Default |
-| :--- | :--- | :--- | :--- |
-| `CES_PULSAR_SERVICE_URL` | The service URL for the Pulsar cluster (e.g., `pulsar://localhost:6650` or `pulsar+ssl://my-cluster:6651`). | Yes | |
-| `CES_PULSAR_TOPIC` | The target Pulsar topic, including the tenant and namespace (e.g., `persistent://public/default/canton-events`). | Yes | |
-| `CES_PULSAR_AUTHENTICATION_PLUGIN` | The fully qualified class name of the authentication plugin. Example: `org.apache.pulsar.client.impl.auth.AuthenticationToken`. | No | |
-| `CES_PULSAR_AUTHENTICATION_PARAMS` | A string of parameters for the authentication plugin. Example for token auth: `token:eyJhbGciOi...`. | No | |
-| `CES_PULSAR_TLS_ENABLED` | Set to `true` if the service URL uses `pulsar+ssl`. | No | `false` |
-| `CES_PULSAR_TLS_TRUST_CERTS_FILE_PATH` | Path to the trusted TLS certificate file. | No | |
-| `CES_PULSAR_BATCHING_ENABLED` | Enable or disable message batching by the producer. | No | `true` |
-| `CES_PULSAR_BATCHING_MAX_MESSAGES` | The maximum number of messages to include in a single batch. | No | `1000` |
+  # Port of the Ledger API gRPC server.
+  port = 6866
 
-### 2.3 AWS Kinesis (`CES_SINK_TYPE=KINESIS`)
+  # TLS configuration for a secure connection to the Ledger API.
+  tls {
+    enabled = false
+    # Path to the CA certificate file (.crt) for the participant node.
+    # Required if tls.enabled = true.
+    # trust-cert-collection-file = "/path/to/participant/tls/ca.crt"
+  }
 
-Authentication is handled via the standard AWS credential provider chain (environment variables, profile, IAM instance role).
+  # Authentication settings.
+  authentication {
+    # The only supported type is "jwt".
+    type = "jwt"
 
-| Variable | Description | Required | Default |
-| :--- | :--- | :--- | :--- |
-| `CES_KINESIS_STREAM_NAME` | The name of the target Kinesis Data Stream. | Yes | |
-| `CES_KINESIS_REGION` | The AWS region where the Kinesis stream is located (e.g., `us-east-1`). | Yes | |
-| `CES_KINESIS_PARTITION_KEY_TEMPLATE`| A template to dynamically generate the partition key for each record. Use placeholders like `{transactionId}`, `{contractId}`, or `{templateId}`. A good key ensures even shard distribution. | Yes | `{transactionId}` |
-| `CES_KINESIS_AGGREGATION_ENABLED` | If `true`, multiple user records are aggregated into a single Kinesis record to improve throughput and reduce cost. | No | `true` |
-| `AWS_ACCESS_KEY_ID` | Your AWS access key ID. (Standard AWS env var). | Conditional | |
-| `AWS_SECRET_ACCESS_KEY` | Your AWS secret access key. (Standard AWS env var). | Conditional | |
-| `AWS_SESSION_TOKEN` | Your AWS session token. (Standard AWS env var). | No | |
+    # Path to a file containing the JWT token for authenticating with the Ledger API.
+    # Using a file is recommended for security over pasting the token here directly.
+    jwt-token-file = "/path/to/ledger-api.token"
+  }
+}
+```
 
-**Note on AWS Auth:** For production environments, it is strongly recommended to use IAM roles for EC2 instances or EKS service accounts instead of setting `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` directly.
+| Parameter                             | Type    | Description                                                                                             | Default     |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- | ----------- |
+| `host`                                | String  | Hostname or IP of the Ledger API server.                                                                | `localhost` |
+| `port`                                | Integer | Port of the Ledger API server.                                                                          | `6866`      |
+| `tls.enabled`                         | Boolean | Set to `true` to enable TLS encryption.                                                                 | `false`     |
+| `tls.trust-cert-collection-file`      | String  | Filesystem path to the trusted CA certificate file. **Required** if `tls.enabled` is `true`.              | (none)      |
+| `authentication.type`                 | String  | The authentication method. Currently, only `"jwt"` is supported.                                        | `"jwt"`     |
+| `authentication.jwt-token-file`       | String  | Filesystem path to a file containing the raw JWT bearer token. **Required**.                              | (none)      |
+
+### Connector Settings (`connector`)
+
+This block defines the core behavior of the streaming connector.
+
+```hocon
+connector {
+  # A unique name for this connector instance. Used in logging and metrics.
+  name = "canton-to-kafka-connector-01"
+
+  # A list of Canton party IDs for which to stream transactions.
+  party-ids = ["TradingParty::1220...", "SettlementParty::1220..."]
+
+  # Configuration for the starting point of the stream.
+  begin-offset {
+    # Mode can be "earliest", "latest", or "explicit".
+    # - earliest: Start from the very beginning of the ledger.
+    # - latest: Start from the current end of the ledger (new events only).
+    # - explicit: Start from a specific ledger offset.
+    mode = "earliest"
+
+    # The specific ledger offset string. Required only if mode is "explicit".
+    # explicit-value = "00000000000000060d62..."
+  }
+
+  # Optional configuration for the end point of the stream.
+  end-offset {
+    # Mode can be "unbounded" or "explicit".
+    # - unbounded: Stream indefinitely.
+    # - explicit: Stop streaming after reaching a specific offset.
+    mode = "unbounded"
+
+    # The specific ledger offset string. Required only if mode is "explicit".
+    # explicit-value = "0000000000000009af01..."
+  }
+
+  # Configuration for persisting the last processed ledger offset.
+  offset-persistence {
+    # Type can be "file" or "memory".
+    # "kafka" is also available if using the Kafka sink for topic-based storage.
+    type = "file"
+
+    # Path to the offset storage file. Required if type is "file".
+    file.path = "/var/data/connector/offsets.dat"
+  }
+
+  # Backpressure settings to prevent overwhelming the sink.
+  backpressure {
+    # Maximum number of concurrent requests to the Ledger API.
+    max-inflight-requests = 64
+
+    # Size of the internal buffer for events before applying backpressure.
+    buffer-size = 1024
+  }
+}
+```
+
+| Parameter                           | Type         | Description                                                                                       | Default      |
+| ----------------------------------- | ------------ | ------------------------------------------------------------------------------------------------- | ------------ |
+| `name`                              | String       | A unique identifier for the connector.                                                            | (none)       |
+| `party-ids`                         | List[String] | A list of parties to stream data for. **Required**.                                               | `[]`         |
+| `begin-offset.mode`                 | String       | Where to start streaming: `earliest`, `latest`, `explicit`.                                       | `latest`     |
+| `begin-offset.explicit-value`       | String       | The ledger offset string if `mode` is `explicit`.                                                 | (none)       |
+| `end-offset.mode`                   | String       | When to stop streaming: `unbounded`, `explicit`.                                                  | `unbounded`  |
+| `end-offset.explicit-value`         | String       | The ledger offset string if `mode` is `explicit`.                                                 | (none)       |
+| `offset-persistence.type`           | String       | How to store progress: `file`, `memory`.                                                          | `memory`     |
+| `offset-persistence.file.path`      | String       | Path to the offset file if `type` is `file`.                                                      | (none)       |
+| `backpressure.max-inflight-requests`| Integer      | Max concurrent gRPC requests to the ledger.                                                       | `64`         |
+| `backpressure.buffer-size`          | Integer      | Internal buffer size for ledger events.                                                           | `1024`       |
 
 ---
 
-## 3. Data Format & Schema Registry
+## Sink Configuration (`sink`)
 
-These settings control the serialization format of the event payload and its integration with a schema registry.
+This section defines the destination for the ledger event stream. You must specify a `type` and configure the corresponding block.
 
-| Variable | Description | Required | Default |
-| :--- | :--- | :--- | :--- |
-| `CES_FORMAT_TYPE` | The output data format for event payloads. Supported values: `JSON`, `AVRO`. | No | `JSON` |
-| `CES_SCHEMA_REGISTRY_TYPE` | The type of schema registry to use. Supported: `CONFLUENT`, `AWS_GLUE`, `NONE`. Required if `CES_FORMAT_TYPE` is `AVRO`. | No | `NONE` |
-| `CES_SCHEMA_REGISTRY_URL` | The URL of the Confluent Schema Registry. Required if `CES_SCHEMA_REGISTRY_TYPE` is `CONFLUENT`. | No | |
-| `CES_SCHEMA_REGISTRY_AUTH_USER_INFO` | Basic authentication credentials for the schema registry in `user:password` format. | No | |
-| `CES_SCHEMA_REGISTRY_AWS_REGION` | The AWS region for the AWS Glue Schema Registry. Required if `CES_SCHEMA_REGISTRY_TYPE` is `AWS_GLUE`. | No | |
-| `CES_SCHEMA_AUTOREGISTRATION_ENABLED` | Set to `true` to allow the connector to automatically register new schemas derived from Daml templates. | No | `true` |
-| `CES_SCHEMA_SUBJECT_NAME_STRATEGY` | For Kafka, defines how to map topics to schema subjects. Supported: `TopicNameStrategy`, `RecordNameStrategy`, `TopicRecordNameStrategy`. | No | `TopicNameStrategy` |
+### Kafka Sink (`sink.kafka`)
+
+For streaming events to an Apache Kafka cluster.
+
+```hocon
+sink {
+  type = "kafka"
+
+  kafka {
+    # Comma-separated list of Kafka broker host:port pairs.
+    bootstrap-servers = "kafka1:9092,kafka2:9092"
+
+    # The target Kafka topic to publish events to.
+    topic = "canton-ledger-events"
+
+    # Exactly-once delivery semantics (EOS). Requires Kafka 0.11+.
+    # If true, a transactional.id will be generated based on connector.name and topic.
+    enable-idempotence = true
+
+    # A map of standard Kafka producer properties.
+    # See: https://kafka.apache.org/documentation/#producerconfigs
+    properties {
+      acks = "all"
+      compression.type = "zstd"
+      # Example for SSL/TLS encryption
+      # security.protocol = "SSL"
+      # ssl.truststore.location = "/path/to/kafka.client.truststore.jks"
+      # ssl.truststore.password = "secret"
+    }
+
+    # Optional integration with a Confluent-compatible Schema Registry.
+    # Only used if format.type is "avro".
+    schema-registry {
+      enabled = false
+      # URL of the Schema Registry.
+      # url = "http://schema-registry:8081"
+      # properties {
+      #   basic.auth.credentials.source = "USER_INFO"
+      #   basic.auth.user.info = "user:password"
+      # }
+    }
+  }
+}
+```
+
+### Pulsar Sink (`sink.pulsar`)
+
+For streaming events to an Apache Pulsar cluster.
+
+```hocon
+sink {
+  type = "pulsar"
+
+  pulsar {
+    # The Pulsar broker service URL.
+    service-url = "pulsar+ssl://pulsar.my-company.com:6651"
+
+    # The target Pulsar topic.
+    topic = "persistent://public/default/canton-ledger-events"
+
+    # Pulsar client authentication settings.
+    authentication {
+      # Example for token-based authentication.
+      plugin-class-name = "org.apache.pulsar.client.impl.auth.AuthenticationToken"
+      params = "token:eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+    }
+
+    # Pulsar client TLS settings.
+    tls {
+      trust-certs-file-path = "/path/to/pulsar/ca.crt"
+      allow-insecure-connection = false
+      enable-hostname-verification = true
+    }
+
+    # Pulsar producer settings.
+    producer {
+      name = "canton-connector-producer"
+      send-timeout-ms = 30000
+      batching-enabled = true
+      batching-max-publish-delay-ms = 10
+    }
+  }
+}
+```
+
+### AWS Kinesis Sink (`sink.kinesis`)
+
+For streaming events to an Amazon Kinesis Data Stream.
+
+```hocon
+sink {
+  type = "kinesis"
+
+  kinesis {
+    # The name of the Kinesis Data Stream.
+    stream-name = "canton-ledger-stream"
+
+    # The AWS region where the stream is located.
+    region = "us-east-1"
+
+    # Configuration for AWS credentials.
+    credentials {
+      # Provider can be "default", "profile", or "static".
+      # - default: Uses the default AWS credential provider chain.
+      # - profile: Uses a named profile from ~/.aws/credentials.
+      # - static: Uses explicitly provided keys.
+      provider = "default"
+
+      # Required if provider is "profile".
+      # profile-name = "my-aws-profile"
+
+      # Required if provider is "static".
+      # access-key-id = "AKIA..."
+      # secret-access-key = "..."
+    }
+
+    # Which field from the Canton event payload to use as the Kinesis partition key.
+    # Using "transaction_id" ensures events from the same transaction go to the same shard.
+    # Using "contract_id" (for create events) partitions by contract.
+    partition-key-field = "transaction_id"
+
+    # Enables KPL-style record aggregation to increase throughput and reduce costs.
+    aggregation-enabled = true
+  }
+}
+```
 
 ---
 
-## 4. Resiliency and Performance
+## Data Format (`format`)
 
-These parameters fine-tune the connector's behavior under load and during failure scenarios, managing backpressure, retries, and offset persistence.
+Configure the serialization format for event payloads sent to the sink.
 
-| Variable | Description | Required | Default |
-| :--- | :--- | :--- | :--- |
-| `CES_OFFSET_STORAGE_TYPE` | How to persist the last processed ledger offset. `MEMORY` is for testing only. For production, use `FILE` or `KAFKA` (persists to a Kafka topic). | No | `MEMORY` |
-| `CES_OFFSET_STORAGE_PATH` | If `CES_OFFSET_STORAGE_TYPE` is `FILE`, this is the path to the offset storage file. | Conditional | `./data/offsets.json` |
-| `CES_OFFSET_STORAGE_KAFKA_TOPIC` | The Kafka topic for storing offsets if `CES_OFFSET_STORAGE_TYPE` is `KAFKA`. | Conditional | `_canton_streamer_offsets` |
-| `CES_STREAM_COMMIT_INTERVAL_MS` | The maximum time in milliseconds between offset commits. | No | `5000` |
-| `CES_STREAM_COMMIT_BATCH_SIZE` | The maximum number of records to process before committing their offset. An offset is committed when either this or the interval is reached. | No | `1000` |
-| `CES_STREAM_BUFFER_SIZE` | The size of the in-memory buffer for events before they are sent to the sink. Acts as a backpressure mechanism. | No | `10000` |
-| `CES_STREAM_RETRY_MAX_ATTEMPTS` | Maximum number of retry attempts for transient sink errors before the connector exits. `0` means no retries. `-1` means infinite retries. | No | `10` |
-| `CES_STREAM_RETRY_BACKOFF_INITIAL_MS`| The initial backoff delay in milliseconds for retries, which increases exponentially. | No | `500` |
-| `CES_STREAM_RETRY_BACKOFF_MAX_MS` | The maximum backoff delay in milliseconds between retries. | No | `30000` |
+```hocon
+format {
+  # The serialization format. Supported values: "json", "avro".
+  type = "json"
+
+  # JSON-specific settings.
+  json {
+    # If true, JSON output will be indented for human readability.
+    # Recommended to be false in production.
+    pretty-print = false
+  }
+
+  # Avro-specific settings.
+  # avro {
+  #   # Schema management strategy.
+  #   # - subject-name-strategy: "TopicNameStrategy", "RecordNameStrategy", etc.
+  # }
+}
+```
+
+---
+
+## Metrics (`metrics`)
+
+Configure observability and monitoring for the connector.
+
+```hocon
+metrics {
+  # Enable or disable the metrics endpoint.
+  enabled = true
+
+  # The metrics provider. Supported values: "prometheus".
+  provider = "prometheus"
+
+  prometheus {
+    # The host to bind the Prometheus exporter HTTP server to.
+    host = "0.0.0.0"
+
+    # The port for the Prometheus exporter HTTP server.
+    port = 9095
+  }
+}
+```
+
+---
+
+## Full Example Configuration
+
+This example shows a complete `connector.conf` file configured to stream events from a TLS-enabled Canton participant to a Kafka cluster, using file-based offset storage and Prometheus metrics.
+
+```hocon
+# Core Canton Ledger Connection
+canton.ledger {
+  host = "participant1.canton.network"
+  port = 6866
+  tls {
+    enabled = true
+    trust-cert-collection-file = "/etc/canton-connector/tls/ca.crt"
+  }
+  authentication {
+    type = "jwt"
+    jwt-token-file = "/etc/canton-connector/secrets/ledger-api.token"
+  }
+}
+
+# Core Connector Settings
+connector {
+  name = "canton-fx-settlement-stream"
+  party-ids = ["FXDealer::1220...", "CentralBank::1220..."]
+  begin-offset {
+    mode = "earliest"
+  }
+  offset-persistence {
+    type = "file"
+    file.path = "/var/data/canton-connector/offsets.json"
+  }
+  backpressure {
+    max-inflight-requests = 128
+    buffer-size = 2048
+  }
+}
+
+# Sink Configuration (Kafka)
+sink {
+  type = "kafka"
+  kafka {
+    bootstrap-servers = "kafka-broker1:9092,kafka-broker2:9092"
+    topic = "canton-fx-settlement-events"
+    enable-idempotence = true
+    properties {
+      acks = "all"
+      compression.type = "snappy"
+      delivery.timeout.ms = 120000
+      security.protocol = "SASL_SSL"
+      sasl.mechanism = "SCRAM-SHA-512"
+      sasl.jaas.config = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"connector_user\" password=\"secret_password\";"
+      ssl.truststore.location = "/etc/canton-connector/tls/kafka.truststore.jks"
+      ssl.truststore.password = "truststore_secret"
+    }
+  }
+}
+
+# Data Format
+format {
+  type = "json"
+  json {
+    pretty-print = false
+  }
+}
+
+# Metrics
+metrics {
+  enabled = true
+  provider = "prometheus"
+  prometheus {
+    host = "0.0.0.0"
+    port = 9095
+  }
+}
+```
